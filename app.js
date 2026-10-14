@@ -1,101 +1,120 @@
-// 初始化播放器
-const dp = new DPlayer({
-    container: document.getElementById('player'),
-    autoplay: true,
-    video: {
-        url: '',
-        type: 'auto',
-    },
-});
+const API_URLS = [
+    'https://ikunzyapi.com/api.php/provide/vod/at/xml',
+    'https://cj.lziapi.com/api.php/provide/vod/at/xml'
+];
 
-const searchBtn = document.getElementById('searchBtn');
-const searchInput = document.getElementById('searchInput');
-const movieList = document.getElementById('movieList');
-const tipsText = document.getElementById('tipsText');
-const playerContainer = document.getElementById('player');
+const PROXY = 'https://corsproxy.io/?';
 
-// 点击搜索
-searchBtn.addEventListener('click', () => {
-    const keyword = searchInput.value.trim();
-    if (!keyword) return alert('请输入搜索关键词');
-    searchMovies(keyword);
-});
-
-// 回车键直接搜
-searchInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        searchBtn.click();
-    }
-});
-
-async function searchMovies(keyword) {
-    movieList.innerHTML = '';
-    tipsText.innerText = '正在全网检索片源...';
-
-    // 使用公开的苹果 CMS 资源站接口，并通过公共 CORS 代理解决浏览器跨域限制
-    const targetApi = `https://api.okzy.tv/api.php/provide/vod/at/json?wd=${encodeURIComponent(keyword)}`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetApi)}`;
-
-    try {
-        const response = await fetch(proxyUrl);
-        const wrapper = await response.json();
-        const data = JSON.parse(wrapper.contents); // 解析代理返回的内容
-
-        if (data && data.list && data.list.length > 0) {
-            tipsText.innerText = `找到相关影视 ${data.list.length} 部，点击即可播放：`;
-            renderMovies(data.list);
-        } else {
-            tipsText.innerText = '没有找到相关影片，换个词试试吧';
-        }
-    } catch (err) {
-        console.error(err);
-        tipsText.innerText = '获取片源失败，请检查网络或稍后再试';
-    }
-}
-
-// 渲染电影卡片
-function renderMovies(movies) {
-    movieList.innerHTML = '';
-    movies.forEach(movie => {
-        const item = document.createElement('div');
-        item.className = 'movie-item';
-        item.innerHTML = `
-            <img class="movie-poster" src="${movie.vod_pic}" alt="${movie.vod_name}" loading="lazy">
-            <div class="movie-title">${movie.vod_name}</div>
-        `;
-
-        item.addEventListener('click', () => {
-            playMovie(movie);
-        });
-
-        movieList.appendChild(item);
-    });
-}
-
-// 提取 m3u8 播放地址并播放
-function playMovie(movie) {
-    const playUrlString = movie.vod_play_url;
-    if (!playUrlString) {
-        return alert('该影片暂无可用播放源');
+async function searchMovies() {
+    const keyword = document.getElementById('searchInput').value.trim();
+    const movieGrid = document.getElementById('movieGrid');
+    const sectionTitle = document.getElementById('sectionTitle');
+    
+    if (!keyword) {
+        alert('请输入影片名称！');
+        return;
     }
 
-    try {
-        // 苹果CMS播放地址通常形如：第1集$url#第2集$url... 取第一集
-        const firstSource = playUrlString.split('#')[0];
-        const m3u8Url = firstSource.split('$')[1];
+    sectionTitle.innerHTML = `<span>搜索结果：${keyword}</span>`;
+    movieGrid.innerHTML = '<div class="loading-text">正在全网检索片源海报中...</div>';
 
-        if (m3u8Url && m3u8Url.includes('.m3u8')) {
-            playerContainer.classList.add('active');
-            dp.switchVideo({ url: m3u8Url });
-            dp.play();
+    let foundResults = [];
+
+    for (let apiUrl of API_URLS) {
+        try {
+            const targetUrl = `${apiUrl}?wd=${encodeURIComponent(keyword)}`;
+            const res = await fetch(PROXY + encodeURIComponent(targetUrl));
+            const xmlText = await res.text();
             
-            // 滚动到顶部让用户看到播放器
-            document.getElementById('contentArea').scrollTo({ top: 0, behavior: 'smooth' });
-        } else {
-            alert('未找到有效的 M3U8 视频直连地址');
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+            const videoNodes = xmlDoc.getElementsByTagName('video');
+
+            for (let node of videoNodes) {
+                const name = node.getElementsByTagName('name')[0]?.textContent || '未知片名';
+                const pic = node.getElementsByTagName('pic')[0]?.textContent || '';
+                const type = node.getElementsByTagName('type')[0]?.textContent || '影视';
+                const note = node.getElementsByTagName('note')[0]?.textContent || 'HD';
+                
+                const dlNode = node.getElementsByTagName('dl')[0];
+                const ddNodes = dlNode ? dlNode.getElementsByTagName('dd') : [];
+                
+                let playUrl = '';
+                for (let dd of ddNodes) {
+                    const text = dd.textContent || '';
+                    if (text.includes('.m3u8')) {
+                        const lines = text.split('$');
+                        for (let line of lines) {
+                            if (line.includes('.m3u8')) {
+                                playUrl = line.match(/(https?:\/\/[^\s]+?\.m3u8)/)?.[0] || '';
+                                if (playUrl) break;
+                            }
+                        }
+                    }
+                    if (playUrl) break;
+                }
+
+                if (playUrl) {
+                    foundResults.push({ name, pic, type, note, playUrl });
+                }
+            }
+        } catch (e) {
+            console.log('线路加载失败：', e);
         }
-    } catch (e) {
-        console.error(e);
-        alert('解析播放地址出错');
+        if (foundResults.length > 0) break;
     }
+
+    if (foundResults.length === 0) {
+        movieGrid.innerHTML = '<div class="loading-text">未找到相关片源，请更换关键词尝试。</div>';
+        return;
+    }
+
+    renderGrid(foundResults);
+}
+
+function renderGrid(list) {
+    const movieGrid = document.getElementById('movieGrid');
+    let html = '';
+    
+    list.forEach(item => {
+        // 缺省图处理
+        const defaultPic = 'https://via.placeholder.com/150x210/222/666?text=BD+VIDEO';
+        const imgUrl = item.pic && item.pic.startsWith('http') ? item.pic : defaultPic;
+
+        html += `
+            <div class="movie-card" onclick="playVideo('${item.playUrl}', '${item.name}')">
+                <div class="poster-wrapper">
+                    <img src="${imgUrl}" onerror="this.src='${defaultPic}'" alt="${item.name}">
+                    <span class="quality-tag">${item.note}</span>
+                </div>
+                <div class="movie-info">
+                    <div class="movie-title">${item.name}</div>
+                    <div class="movie-sub">${item.type}</div>
+                </div>
+            </div>
+        `;
+    });
+    movieGrid.innerHTML = html;
+}
+
+function playVideo(url, name) {
+    const playerSection = document.getElementById('playerSection');
+    const playerTitle = document.getElementById('playerTitle');
+    
+    playerSection.style.display = 'block';
+    playerTitle.innerText = `正在播放：${name}`;
+    
+    // 滚动到播放器位置
+    playerSection.scrollIntoView({ behavior: 'smooth' });
+
+    document.getElementById('dplayer').innerHTML = '';
+
+    new DPlayer({
+        container: document.getElementById('dplayer'),
+        autoplay: true,
+        video: {
+            url: url,
+            type: 'hls'
+        }
+    });
 }
