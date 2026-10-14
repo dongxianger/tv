@@ -1,11 +1,13 @@
-// 静态备用热门推荐（防止代理失效时死黑）
+// 静态备用热门推荐（保底数据）
 const DEFAULT_MOVIES = [
-    { name: "蜘蛛侠：崭新之日", pic: "https://p.ssl.qhimg.com/t01d01dd3a6a978f8ff.jpg", score: "2.5分", note: "HD", playUrl: "https://v3.szjal.cn/202305/01/vG3fG3zY/video/index.m3u8" },
-    { name: "希望2026", pic: "https://p.ssl.qhimg.com/t01825eb0e9d6d54d24.jpg", score: "0.0分", note: "HD", playUrl: "https://v3.szjal.cn/202305/01/vG3fG3zY/video/index.m3u8" },
-    { name: "金蝉脱壳3：恶魔车站", pic: "https://p.ssl.qhimg.com/t01314aef72c0ddcbe2.jpg", score: "0.0分", note: "HD", playUrl: "https://v3.szjal.cn/202305/01/vG3fG3zY/video/index.m3u8" },
-    { name: "兰香如故", pic: "https://p.ssl.qhimg.com/t01f221437bf2f1a3a4.jpg", score: "3.3分", note: "更新至第25集", playUrl: "https://v3.szjal.cn/202305/01/vG3fG3zY/video/index.m3u8" },
-    { name: "魅影神捕", pic: "https://p.ssl.qhimg.com/t011c75dd9c1b35e076.jpg", score: "2.5分", note: "全集", playUrl: "https://v3.szjal.cn/202305/01/vG3fG3zY/video/index.m3u8" }
+    { name: "蜘蛛侠：崭新之日", pic: "https://p.ssl.qhimg.com/t01d01dd3a6a978f8ff.jpg", score: "2.5分", note: "HD", playUrl: "" },
+    { name: "希望2026", pic: "https://p.ssl.qhimg.com/t01825eb0e9d6d54d24.jpg", score: "0.0分", note: "HD", playUrl: "" },
+    { name: "金蝉脱壳3：恶魔车站", pic: "https://p.ssl.qhimg.com/t01314aef72c0ddcbe2.jpg", score: "0.0分", note: "HD", playUrl: "" }
 ];
+
+// 修罗影视接口 + 跨域中转代理
+const PROXY = 'https://api.allorigins.win/raw?url=';
+const XL_API = 'http://www.xlysw.ggff.net/api.php/provide/vod/?ac=detail';
 
 // 页面加载完成后自动运行
 window.onload = function() {
@@ -16,29 +18,33 @@ window.onload = function() {
 async function loadHomeRecommend() {
     const movieGrid = document.getElementById('movieGrid');
     
-    // 优先尝试从稳定JSON接口获取
     try {
-        let res = await fetch('https://api.wujinapi.me/api.php/provide/vod/?ac=detail');
+        // 抓取修罗影视接口
+        let res = await fetch(PROXY + encodeURIComponent(XL_API));
         let data = await res.json();
+        
         if (data && data.list && data.list.length > 0) {
-            let list = data.list.map(item => ({
-                name: item.vod_name,
-                pic: item.vod_pic,
-                score: item.vod_score || '0.0分',
-                note: item.vod_remarks || 'HD',
-                playUrl: extractM3u8(item.vod_play_url)
-            })).filter(item => item.playUrl);
-
+            let list = parseMovieData(data.list);
             if (list.length > 0) {
                 renderGrid(list);
                 return;
             }
         }
     } catch (e) {
-        console.log('网络接口读取超时，切换备用推荐');
+        console.log('修罗接口读取超时，尝试备用线路...', e);
     }
 
-    // 接口失败时保底渲染
+    // 接口失败时尝试二次直连
+    try {
+        let res = await fetch('https://cj.lziapi.com/inc/api.php?ac=detail');
+        let data = await res.json();
+        if (data && data.list) {
+            let list = parseMovieData(data.list);
+            renderGrid(list);
+            return;
+        }
+    } catch(e) {}
+
     renderGrid(DEFAULT_MOVIES);
 }
 
@@ -54,21 +60,15 @@ async function searchMovies() {
     }
 
     sectionTitle.innerHTML = `<span>搜索结果：${keyword}</span>`;
-    movieGrid.innerHTML = '<div class="loading-tip">正在全网检索《' + keyword + '》...</div>';
+    movieGrid.innerHTML = '<div class="loading-tip">正在检索《' + keyword + '》...</div>';
 
     try {
-        let res = await fetch(`https://api.wujinapi.me/api.php/provide/vod/?ac=detail&wd=${encodeURIComponent(keyword)}`);
+        let searchUrl = XL_API + `&wd=${encodeURIComponent(keyword)}`;
+        let res = await fetch(PROXY + encodeURIComponent(searchUrl));
         let data = await res.json();
         
         if (data && data.list && data.list.length > 0) {
-            let list = data.list.map(item => ({
-                name: item.vod_name,
-                pic: item.vod_pic,
-                score: item.vod_score || '0.0分',
-                note: item.vod_remarks || 'HD',
-                playUrl: extractM3u8(item.vod_play_url)
-            })).filter(item => item.playUrl);
-
+            let list = parseMovieData(data.list);
             if (list.length > 0) {
                 renderGrid(list);
                 return;
@@ -79,6 +79,17 @@ async function searchMovies() {
     }
 
     movieGrid.innerHTML = '<div class="loading-tip">未找到相关片源，请尝试其他关键词。</div>';
+}
+
+// 解析数据公共函数
+function parseMovieData(rawList) {
+    return rawList.map(item => ({
+        name: item.vod_name,
+        pic: item.vod_pic,
+        score: item.vod_score || '0.0分',
+        note: item.vod_remarks || 'HD',
+        playUrl: extractM3u8(item.vod_play_url)
+    })).filter(item => item.playUrl);
 }
 
 // 解析 m3u8 链接
