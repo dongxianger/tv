@@ -3,62 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BD影视 - 极简高清站</title>
+    <title>修罗影视 - 极简高清站</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css">
     <script src="https://cdn.jsdelivr.net/npm/hls.js/dist/hls.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding-bottom: 30px; }
-        header { background: #1f1f1f; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d2d2d; sticky: top; top: 0; z-index: 100; }
-        .logo { font-size: 20px; font-weight: bold; color: #00e676; letter-spacing: 1px; }
-        .search-bar { display: flex; margin: 15px 20px; background: #1f1f1f; border-radius: 25px; padding: 5px 15px; border: 1px solid #333; }
-        .search-bar input { background: transparent; border: none; color: #fff; width: 100%; padding: 8px; outline: none; font-size: 14px; }
-        .search-bar button { background: #00e676; border: none; color: #000; font-weight: bold; padding: 8px 18px; border-radius: 20px; cursor: pointer; }
+        body { background-color: #121824; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding-bottom: 40px; }
         
-        #playerSection { display: none; margin: 15px 20px; background: #1f1f1f; border-radius: 10px; padding: 10px; border: 1px solid #2d2d2d; }
-        #playerTitle { font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #fff; }
-        #dplayer { width: 100%; height: 220px; border-radius: 8px; overflow: hidden; }
+        /* 顶部导航栏 */
+        header { background: #1a2233; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a3447; position: sticky; top: 0; z-index: 100; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .logo-icon { width: 28px; height: 28px; background: #fff; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #1a2233; }
+        .logo-text { font-size: 18px; font-weight: bold; color: #fff; letter-spacing: 0.5px; }
+        .menu-btn { background: #253145; border: none; color: #fff; padding: 6px 12px; border-radius: 4px; font-size: 13px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+        
+        .header-right { display: flex; align-items: center; gap: 15px; color: #aaa; font-size: 18px; }
 
-        .container { padding: 0 20px; }
-        .section-title { font-size: 16px; margin: 15px 0; color: #888; display: flex; justify-content: space-between; }
+        /* 搜索栏区 */
+        .search-container { background: #1a2233; padding: 12px 15px; display: flex; gap: 10px; border-bottom: 1px solid #2a3447; }
+        .search-box { flex: 1; display: flex; align-items: center; background: #121824; border-radius: 6px; padding: 0 10px; border: 1px solid #2e3b52; }
+        .search-box input { background: transparent; border: none; color: #fff; width: 100%; padding: 10px 5px; outline: none; font-size: 14px; }
+        .search-box input::placeholder { color: #6b7a90; }
+        .search-submit { background: #00e676; border: none; color: #000; font-weight: bold; padding: 0 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+
+        /* 播放器区域 */
+        #playerSection { display: none; margin: 15px; background: #1a2233; border-radius: 8px; padding: 12px; border: 1px solid #2a3447; }
+        #playerTitle { font-size: 15px; font-weight: bold; margin-bottom: 10px; color: #fff; }
+        #dplayer { width: 100%; height: 210px; border-radius: 6px; overflow: hidden; }
+
+        /* 内容板块 */
+        .section { padding: 15px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .section-title { font-size: 16px; font-weight: bold; color: #fff; border-left: 3px solid #00e676; padding-left: 8px; }
+        .section-sub { font-size: 12px; color: #6b7a90; }
+
+        /* 电影网格 (仿截图的三列海报排版) */
+        .movie-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .movie-card { background: #1a2233; border-radius: 6px; overflow: hidden; cursor: pointer; position: relative; border: 1px solid #222d40; }
+        .poster-box { width: 100%; height: 135px; background: #253145; position: relative; overflow: hidden; }
+        .poster-box img { width: 100%; height: 100%; object-fit: cover; }
         
-        /* BD风格海报墙 */
-        .poster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 12px; }
-        .movie-card { background: #1f1f1f; border-radius: 8px; overflow: hidden; position: relative; cursor: pointer; transition: transform 0.2s; }
-        .movie-card:active { transform: scale(0.96); }
-        .poster-wrapper { width: 100%; height: 140px; background: #2a2a2a; position: relative; overflow: hidden; }
-        .poster-wrapper img { width: 100%; height: 100%; object-fit: cover; }
-        .quality-tag { position: absolute; top: 5px; right: 5px; background: rgba(0,230,118,0.9); color: #000; font-size: 10px; font-weight: bold; padding: 2px 5px; border-radius: 3px; }
+        /* 评分标签 (仿截图左上角蓝色分值) */
+        .score-tag { position: absolute; top: 6px; left: 6px; background: rgba(30, 144, 255, 0.85); color: #fff; font-size: 10px; font-weight: bold; padding: 2px 5px; border-radius: 3px; }
+        
+        /* 高清标签 (仿截图右下角HD标签) */
+        .hd-tag { position: absolute; bottom: 6px; right: 6px; background: rgba(0,0,0,0.6); color: #fff; font-size: 9px; padding: 1px 4px; border-radius: 2px; }
+
         .movie-info { padding: 8px; }
-        .movie-title { font-size: 13px; font-weight: bold; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .movie-sub { font-size: 11px; color: #777; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
-        .loading-text { text-align: center; color: #666; padding: 40px 0; font-size: 14px; }
+        .movie-name { font-size: 13px; font-weight: bold; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .movie-desc { font-size: 11px; color: #6b7a90; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .loading-tip { grid-column: span 3; text-align: center; color: #6b7a90; padding: 30px 0; font-size: 13px; }
     </style>
 </head>
 <body>
 
+    <!-- 顶栏 -->
     <header>
-        <div class="logo">BD·影视</div>
+        <div class="header-left">
+            <div class="logo-icon">修</div>
+            <div class="logo-text">修罗影视</div>
+            <button class="menu-btn">视频 ▾</button>
+        </div>
+        <div class="header-right">
+            <span>🕒</span>
+            <span>💬</span>
+            <span>👤</span>
+            <span>🌓</span>
+        </div>
     </header>
 
-    <div class="search-bar">
-        <input type="text" id="searchInput" placeholder="搜索电影、电视剧、动漫..." onkeyup="if(event.keyCode===13) searchMovies()">
-        <button onclick="searchMovies()">搜索</button>
+    <!-- 搜索栏 -->
+    <div class="search-container">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="输入关键词...用空格隔开" onkeyup="if(event.keyCode===13) searchMovies()">
+        </div>
+        <button class="search-submit" onclick="searchMovies()">搜索</button>
     </div>
 
-    <!-- 播放器区域 -->
+    <!-- 播放器 -->
     <div id="playerSection">
         <div id="playerTitle">正在播放</div>
         <div id="dplayer"></div>
     </div>
 
-    <!-- 影片列表区域 -->
-    <div class="container">
-        <div class="section-title" id="sectionTitle"><span>热门推荐</span></div>
-        <div id="movieGrid" class="poster-grid">
-            <div class="loading-text">输入关键词搜索影片片源</div>
+    <!-- 推荐/搜索结果板块 -->
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title" id="sectionTitle">热门推荐</div>
+            <div class="section-sub" id="sectionSub">今日更新同步全网资源</div>
+        </div>
+        <div id="movieGrid" class="movie-grid">
+            <div class="loading-tip">正在载入海报墙数据，请稍候...</div>
         </div>
     </div>
 
